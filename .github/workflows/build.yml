@@ -5,10 +5,12 @@ on:
     branches: [ "main" ]
     paths:
       - 'BypassRiskProject/**'
+      - '.github/workflows/**'
   pull_request:
     branches: [ "main" ]
     paths:
       - 'BypassRiskProject/**'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 jobs:
@@ -33,18 +35,33 @@ jobs:
           path: |
             ~/theos
             ~/theos/sdks
-          key: ${{ runner.os }}-theos-v2
+          key: ${{ runner.os }}-theos-sdk18.6
 
       - name: Install Theos
         if: steps.cache-theos.outputs.cache-hit != 'true'
         run: |
+          set -e
           git config --global advice.detachedHead false
+          echo "::group::Cloning Theos"
           git clone --recursive --depth=1 https://github.com/theos/theos.git ~/theos
-          # Download a compatible iOS SDK for offline compilation
+          echo "::endgroup::"
+          echo "::group::Downloading iOS SDK"
           mkdir -p ~/theos/sdks
-          curl -L -o /tmp/iPhoneOS16.0.sdk.zip \
-            https://github.com/xybp888/iOS-SDKs/releases/download/16.0/iPhoneOS16.0.sdk.zip
-          unzip -q /tmp/iPhoneOS16.0.sdk.zip -d ~/theos/sdks/
+          SDK_URL="https://github.com/xybp888/iOS-SDKs/releases/download/iOS18.6-SDKs/iPhoneOS18.6.sdk.zip"
+          echo "Downloading SDK from: $SDK_URL"
+          curl -L -o /tmp/iPhoneOS18.6.sdk.zip "$SDK_URL"
+          # Validate download is a valid zip
+          DOWNLOAD_SIZE=$(stat -f%z /tmp/iPhoneOS18.6.sdk.zip 2>/dev/null || stat --format=%s /tmp/iPhoneOS18.6.sdk.zip 2>/dev/null || echo "0")
+          echo "Downloaded size: $DOWNLOAD_SIZE bytes"
+          if [ "$DOWNLOAD_SIZE" -lt 1000000 ]; then
+            echo "ERROR: SDK download is too small ($DOWNLOAD_SIZE bytes). File may not exist."
+            exit 1
+          fi
+          echo "Extracting SDK..."
+          unzip -q /tmp/iPhoneOS18.6.sdk.zip -d ~/theos/sdks/
+          echo "SDK installed at:"
+          ls -la ~/theos/sdks/
+          echo "::endgroup::"
 
       - name: Build dylib
         run: |

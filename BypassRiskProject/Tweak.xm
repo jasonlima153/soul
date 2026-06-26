@@ -1,5 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
+#import <objc/runtime.h>
+#import <objc/message.h>
 #include <mach-o/dyld.h>
 #include <mach-o/loader.h>
 #include <sys/stat.h>
