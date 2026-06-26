@@ -1,0 +1,84 @@
+name: Build BypassRiskPlugin.dylib
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'BypassRiskProject/**'
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'BypassRiskProject/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode_16.1.app 2>/dev/null || true
+
+      - name: Install Theos dependencies
+        run: |
+          brew install ldid xz coreutils
+
+      - name: Cache Theos toolchain
+        id: cache-theos
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/theos
+            ~/theos/sdks
+          key: ${{ runner.os }}-theos-v2
+
+      - name: Install Theos
+        if: steps.cache-theos.outputs.cache-hit != 'true'
+        run: |
+          git config --global advice.detachedHead false
+          git clone --recursive --depth=1 https://github.com/theos/theos.git ~/theos
+          # Download a compatible iOS SDK for offline compilation
+          mkdir -p ~/theos/sdks
+          curl -L -o /tmp/iPhoneOS16.0.sdk.zip \
+            https://github.com/xybp888/iOS-SDKs/releases/download/16.0/iPhoneOS16.0.sdk.zip
+          unzip -q /tmp/iPhoneOS16.0.sdk.zip -d ~/theos/sdks/
+
+      - name: Build dylib
+        run: |
+          export THEOS=~/theos
+          cd BypassRiskProject
+          make clean 2>/dev/null || true
+          make package
+        env:
+          THEOS: ~/theos
+
+      - name: Locate and prepare dylib artifact
+        run: |
+          export THEOS=~/theos
+          echo "=== Build output tree ==="
+          find BypassRiskProject/.theos -name "*.dylib" 2>/dev/null || true
+          find BypassRiskProject/packages -type f 2>/dev/null || true
+          # Collect .dylib files (debug/release)
+          mkdir -p /tmp/artifact
+          find BypassRiskProject/.theos -name "BypassRiskPlugin.dylib" -exec cp {} /tmp/artifact/ \; 2>/dev/null || true
+          # Also copy .deb package if generated
+          cp BypassRiskProject/packages/*.deb /tmp/artifact/ 2>/dev/null || true
+          ls -la /tmp/artifact/ 2>/dev/null || echo "No artifacts found"
+
+      - name: Upload compiled dylib
+        uses: actions/upload-artifact@v4
+        with:
+          name: BypassRiskPlugin-dylib
+          path: /tmp/artifact/*
+          if-no-files-found: warn
+
+      - name: Upload .deb package (theos package)
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: BypassRiskPlugin-deb
+          path: BypassRiskProject/packages/*.deb
+          if-no-files-found: ignore
