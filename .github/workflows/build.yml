@@ -68,34 +68,22 @@ jobs:
           export THEOS=~/theos
           cd BypassRiskProject
           make clean 2>/dev/null || true
-          make package
-        env:
-          THEOS: ~/theos
+          make
+          echo "=== Build complete ==="
+          find .theos -name "*.dylib" 2>/dev/null
 
       - name: Locate and prepare dylib artifact
         run: |
           export THEOS=~/theos
           echo "=== Build output tree ==="
-          find BypassRiskProject/.theos -name "*.dylib" 2>/dev/null || true
-          find BypassRiskProject/packages -type f 2>/dev/null || true
-          # Collect .dylib files (debug/release)
+          find BypassRiskProject/.theos -name "*.dylib" -type f 2>/dev/null || true
           mkdir -p /tmp/artifact
-          find BypassRiskProject/.theos -name "BypassRiskPlugin.dylib" -exec cp {} /tmp/artifact/ \; 2>/dev/null || true
-          # Also copy .deb package if generated
-          cp BypassRiskProject/packages/*.deb /tmp/artifact/ 2>/dev/null || true
+          find BypassRiskProject/.theos -name "BypassRiskPlugin.dylib" -type f -exec cp {} /tmp/artifact/ \; 2>/dev/null || true
           ls -la /tmp/artifact/ 2>/dev/null || echo "No artifacts found"
 
       - name: Upload compiled dylib
         uses: actions/upload-artifact@v4
         with:
           name: BypassRiskPlugin-dylib
-          path: /tmp/artifact/*
-          if-no-files-found: warn
-
-      - name: Upload .deb package (theos package)
-        uses: actions/upload-artifact@v4
-        continue-on-error: true
-        with:
-          name: BypassRiskPlugin-deb
-          path: BypassRiskProject/packages/*.deb
-          if-no-files-found: ignore
+          path: /tmp/artifact/BypassRiskPlugin.dylib
+          if-no-files-found: error
