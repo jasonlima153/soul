@@ -8,6 +8,18 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <Security/Security.h>
+#ifndef CF_BRIDGED_TYPE
+#define CF_BRIDGED_TYPE(TYPE)
+#endif
+#if __has_include(<Security/SecCode.h>)
+#  import <Security/SecCode.h>
+#  import <Security/SecRequirement.h>
+#else
+// Forward declarations for private Security code-signing types
+typedef uint32_t SecCSFlags;
+typedef struct CF_BRIDGED_TYPE(id) __SecCode *SecCodeRef;
+typedef struct CF_BRIDGED_TYPE(id) __SecRequirement *SecRequirementRef;
+#endif
 #import "fishhook.h"
 
 // ==========================================
@@ -42,22 +54,22 @@ static _dyld_register_func_for_add_image_t orig_dyld_register_func_for_add_image
 
 static dyld_image_callback g_risk_plugin_callback = NULL;
 
+// Plain C callback wrapper (avoids C++11 lambda which fails under ObjC mode)
+static void shadow_callback_func(const struct mach_header* mh, intptr_t vmaddr_slide) {
+    if (mh != NULL) {
+        const char* image_name = _dyld_get_image_name(0);
+        if (image_name && (strstr(image_name, "BypassRiskPlugin") || strstr(image_name, ".app/Frameworks/"))) {
+            return;
+        }
+    }
+    if (g_risk_plugin_callback) {
+        g_risk_plugin_callback(mh, vmaddr_slide);
+    }
+}
+
 void my_dyld_register_func_for_add_image(dyld_image_callback func) {
     g_risk_plugin_callback = func;
-
-    auto shadow_callback = [](const struct mach_header* mh, intptr_t vmaddr_slide) {
-        if (mh != NULL) {
-            const char* image_name = _dyld_get_image_name(0);
-            if (image_name && (strstr(image_name, "BypassRiskPlugin") || strstr(image_name, ".app/Frameworks/"))) {
-                return;
-            }
-        }
-        if (g_risk_plugin_callback) {
-            g_risk_plugin_callback(mh, vmaddr_slide);
-        }
-    };
-
-    orig_dyld_register_func_for_add_image(shadow_callback);
+    orig_dyld_register_func_for_add_image(shadow_callback_func);
 }
 
 // ==========================================
