@@ -25,8 +25,8 @@ typedef struct CF_BRIDGED_TYPE(id) __SecRequirement *SecRequirementRef;
 // ==========================================
 // 1. 配置信息与全局缓存
 // ==========================================
-static NSString *const kOfficialBundleID = @"com.chinatelecom.cloud";
-static NSString *const kOfficialTeamID   = @"OFFICIALTEAMID123";
+static NSString *const kOfficialBundleID = @"com.soulapp.cn";
+static NSString *const kOfficialTeamID   = @"M8FGKU3T4J";
 
 // ==========================================
 // 2. 核心拦截模块：Security 签名框架断路
@@ -107,9 +107,10 @@ void initClassHooks() {
 
     // 2. Hook [NSBundle infoDictionary]
     Method origInfo = class_getInstanceMethod([NSBundle class], @selector(infoDictionary));
+    // Save original IMP before replacing to avoid recursive call
+    IMP origInfoIMP = method_getImplementation(origInfo);
     IMP mockInfo = imp_implementationWithBlock(^NSDictionary* (id self) {
-        Method orig = class_getInstanceMethod([NSBundle class], @selector(infoDictionary));
-        NSDictionary *origDict = ((NSDictionary* (*)(id, SEL))method_getImplementation(orig))(self, @selector(infoDictionary));
+        NSDictionary *origDict = ((NSDictionary* (*)(id, SEL))origInfoIMP)(self, @selector(infoDictionary));
         NSMutableDictionary *mockDict = [origDict mutableCopy];
         mockDict[@"CFBundleIdentifier"] = kOfficialBundleID;
         mockDict[@"AppIdentifierPrefix"] = kOfficialTeamID;
